@@ -32,7 +32,6 @@ async def get_connection_uri():
     ) as pool:
         async with pool.connection() as conn:
             async with conn.cursor() as cur:
-                print("inside")
                 await cur.execute("SELECT version();")
                 print(await cur.fetchone())
 
