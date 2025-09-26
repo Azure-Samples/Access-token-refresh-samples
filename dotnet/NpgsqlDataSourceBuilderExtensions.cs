@@ -27,6 +27,7 @@ namespace Postgres.EntraAuth;
 public static class NpgsqlDataSourceBuilderExtensions
 {
     private static readonly TokenRequestContext s_azureDBForPostgresTokenRequestContext = new([Constants.AzureDBForPostgresScope]);
+    private static readonly TokenRequestContext s_managementTokenRequestContext = new([Constants.AzureManagementScope]);
 
     /// <summary>
     /// Configures the NpgsqlDataSourceBuilder to use Entra authentication.
@@ -34,14 +35,25 @@ public static class NpgsqlDataSourceBuilderExtensions
     /// <param name="dataSourceBuilder">The NpgsqlDataSourceBuilder instance.</param>
     /// <param name="credential">The TokenCredential to use for authentication. If not provided, DefaultAzureCredential will be used.</param>
     /// <returns>The configured NpgsqlDataSourceBuilder instance.</returns>
-    public static NpgsqlDataSourceBuilder UseEntraAuthentication(this NpgsqlDataSourceBuilder dataSourceBuilder, TokenCredential? credential = default)
+    public static NpgsqlDataSourceBuilder UseEntraAuthentication(this NpgsqlDataSourceBuilder dataSourceBuilder, TokenCredential? credential = default, CancellationToken cancellationToken = default)
     {
         credential ??= new DefaultAzureCredential();
 
         if (dataSourceBuilder.ConnectionStringBuilder.Username == null)
         {
-            var token = credential.GetToken(s_azureDBForPostgresTokenRequestContext, default);
-            SetUsernameFromToken(dataSourceBuilder, token.Token);
+            var token = credential.GetToken(s_managementTokenRequestContext, cancellationToken);
+            var username = TryGetUsernameFromToken(token.Token);
+
+            if (username != null)
+            {
+                dataSourceBuilder.ConnectionStringBuilder.Username = username;
+            }
+            else
+            {
+                // Otherwise check using the PostgresSql scope
+                token = credential.GetToken(s_azureDBForPostgresTokenRequestContext, cancellationToken);
+                SetUsernameFromToken(dataSourceBuilder, token.Token);
+            }
         }
 
         SetPasswordProvider(dataSourceBuilder, credential, s_azureDBForPostgresTokenRequestContext);
@@ -62,8 +74,19 @@ public static class NpgsqlDataSourceBuilderExtensions
 
         if (dataSourceBuilder.ConnectionStringBuilder.Username == null)
         {
-            var token = await credential.GetTokenAsync(s_azureDBForPostgresTokenRequestContext, cancellationToken).ConfigureAwait(false);
-            SetUsernameFromToken(dataSourceBuilder, token.Token);
+            var token = await credential.GetTokenAsync(s_managementTokenRequestContext, cancellationToken).ConfigureAwait(false);
+            var username = TryGetUsernameFromToken(token.Token);
+
+            if (username != null)
+            {
+                dataSourceBuilder.ConnectionStringBuilder.Username = username;
+            }
+            else
+            {
+                // Otherwise check using the PostgresSql scope
+                token = await credential.GetTokenAsync(s_azureDBForPostgresTokenRequestContext, cancellationToken).ConfigureAwait(false);
+                SetUsernameFromToken(dataSourceBuilder, token.Token);
+            }
         }
 
         SetPasswordProvider(dataSourceBuilder, credential, s_azureDBForPostgresTokenRequestContext);
@@ -109,32 +132,84 @@ public static class NpgsqlDataSourceBuilderExtensions
 
         // The payload is the second part, Base64Url encoded
         var payload = tokenParts[1];
-
-        // Add padding if necessary
-        payload = AddBase64Padding(payload);
-
-        // Decode the payload from Base64Url
-        var decodedBytes = Convert.FromBase64String(payload);
-        var decodedPayload = Encoding.UTF8.GetString(decodedBytes);
-
-        // Parse the decoded payload as JSON
-        var payloadJson = JsonSerializer.Deserialize<JsonElement>(decodedPayload);
-
-        // Try to get the username from 'upn', 'preferred_username', or 'unique_name' claims
-        if (payloadJson.TryGetProperty("upn", out var upn))
+        if (string.IsNullOrWhiteSpace(payload))
         {
-            return upn.GetString();
-        }
-        else if (payloadJson.TryGetProperty("preferred_username", out var preferredUsername))
-        {
-            return preferredUsername.GetString();
-        }
-        else if (payloadJson.TryGetProperty("unique_name", out var uniqueName))
-        {
-            return uniqueName.GetString();
+            return null; // empty payload
         }
 
-        return null;
+        try
+        {
+            // Add padding if necessary
+            payload = AddBase64Padding(payload);
+
+            // Convert from Base64Url to standard Base64
+            payload = payload.Replace('-', '+').Replace('_', '/');
+
+            // Decode the payload from Base64Url
+            var decodedBytes = Convert.FromBase64String(payload);
+            var decodedPayload = Encoding.UTF8.GetString(decodedBytes);
+
+            if (string.IsNullOrWhiteSpace(decodedPayload))
+            {
+                return null; // nothing to parse
+            }
+
+            // Parse the decoded payload as JSON
+            var payloadJson = JsonSerializer.Deserialize<JsonElement>(decodedPayload);
+
+            // Try to get the username from 'xms_mirid', 'upn', 'preferred_username', or 'unique_name' claims
+            if (payloadJson.TryGetProperty("xms_mirid", out var xms_mirid) &&
+                xms_mirid.GetString() is string xms_miridString &&
+                ParsePrincipalName(xms_miridString) is string principalName)
+            {
+                return principalName;
+            }
+            else if (payloadJson.TryGetProperty("upn", out var upn))
+            {
+                return upn.GetString();
+            }
+            else if (payloadJson.TryGetProperty("preferred_username", out var preferredUsername))
+            {
+                return preferredUsername.GetString();
+            }
+            else if (payloadJson.TryGetProperty("unique_name", out var uniqueName))
+            {
+                return uniqueName.GetString();
+            }
+
+            return null; // no relevant claims
+        }
+        catch (FormatException)
+        {
+            // Invalid Base64 content
+            return null;
+        }
+        catch (JsonException)
+        {
+            // Invalid JSON content
+            return null;
+        }
+    }
+
+    private static string? ParsePrincipalName(string xms_mirid)
+    {
+        // parse the xms_mirid claim which looks like
+        // /subscriptions/{subId}/resourcegroups/{resourceGroup}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{principalName}
+        var lastSlashIndex = xms_mirid.LastIndexOf('/');
+        if (lastSlashIndex == -1)
+        {
+            return null;
+        }
+
+        var beginning = xms_mirid.AsSpan(0, lastSlashIndex);
+        var principalName = xms_mirid.AsSpan(lastSlashIndex + 1);
+
+        if (principalName.IsEmpty || !beginning.EndsWith("providers/Microsoft.ManagedIdentity/userAssignedIdentities", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return principalName.ToString();
     }
 
     private static string AddBase64Padding(string base64) => (base64.Length % 4) switch

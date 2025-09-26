@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-  <TargetFrameworks>net9.0</TargetFrameworks>
-  <!-- Opt-in to .NET 10 build when SDK is installed: dotnet build -p:IncludeNet10=true -->
-  <TargetFrameworks Condition="'$(IncludeNet10)'=='true'">$(TargetFrameworks);net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <!-- Opt-in to .NET 10 build when SDK is installed: dotnet build -p:IncludeNet10=true -->
+    <TargetFrameworks Condition="'$(IncludeNet10)'=='true'">$(TargetFrameworks);net10.0</TargetFrameworks>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>
