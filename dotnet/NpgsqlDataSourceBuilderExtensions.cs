@@ -139,11 +139,11 @@ public static class NpgsqlDataSourceBuilderExtensions
 
         try
         {
-            // Add padding if necessary
-            payload = AddBase64Padding(payload);
-
             // Convert from Base64Url to standard Base64
             payload = payload.Replace('-', '+').Replace('_', '/');
+
+            // Add padding if necessary
+            payload = AddBase64Padding(payload);
 
             // Decode the payload from Base64Url
             var decodedBytes = Convert.FromBase64String(payload);
