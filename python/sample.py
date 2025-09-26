@@ -19,9 +19,9 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 async def get_connection_uri():
-    # Read URI parameters from the environment
+    # Example usage of AsyncEntraConnection with psycopg_pool
     async with AsyncConnectionPool(
-        min_size=1, max_size=2,
+        min_size=1, max_size=2,  # Pass a custom connection class here to override connection behavior and use Microsoft Entra ID access tokens for authentication.
         connection_class=AsyncEntraConnection,
         kwargs=dict(
             host=hostname,            
