@@ -25,11 +25,12 @@ from azure.identity import DefaultAzureCredential
 from psycopg import AsyncConnection
 
 AZURE_DB_FOR_POSTGRES_SCOPE = "https://ossrdbms-aad.database.windows.net/.default"
+AZURE_MANAGEMENT_SCOPE = "https://management.azure.com/.default"
 
 logger = logging.getLogger(__name__)
 
 
-async def get_entra_token_async(credential: AsyncTokenCredential) -> str:
+async def get_entra_token_async(credential: AsyncTokenCredential, scope: str) -> str:
     """Asynchronously acquires an Entra authentication token for Azure PostgreSQL.
 
     Parameters:
@@ -41,11 +42,11 @@ async def get_entra_token_async(credential: AsyncTokenCredential) -> str:
     logger.info("Acquiring Entra token for postgres password")
 
     async with credential:
-        cred = await credential.get_token(AZURE_DB_FOR_POSTGRES_SCOPE)
+        cred = await credential.get_token(scope)
         return cred.token
 
 
-def get_entra_token(credential: TokenCredential | None) -> str:
+def get_entra_token(credential: TokenCredential | None, scope: str) -> str:
     """Acquires an Entra authentication token for Azure PostgreSQL synchronously.
 
     Parameters:
@@ -58,7 +59,7 @@ def get_entra_token(credential: TokenCredential | None) -> str:
     logger.info("Acquiring Entra token for postgres password")
     credential = credential or get_default_azure_credentials()
 
-    return credential.get_token(AZURE_DB_FOR_POSTGRES_SCOPE).token
+    return credential.get_token(scope).token
 
 
 @lru_cache(maxsize=1)
@@ -85,6 +86,32 @@ def decode_jwt(token):
     decoded_payload = base64.urlsafe_b64decode(payload + padding)
     return json.loads(decoded_payload)
 
+def parse_principal_name(xms_mirid: str) -> str | None:
+    """Parses the principal name from an Azure resource path.
+
+    Parameters:
+        xms_mirid (str): The xms_mirid claim value containing the Azure resource path.
+
+    Returns:
+        str | None: The extracted principal name, or None if parsing fails.
+    """
+    if not xms_mirid:
+        return None
+    
+    # Parse the xms_mirid claim which looks like
+    # /subscriptions/{subId}/resourcegroups/{resourceGroup}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{principalName}
+    last_slash_index = xms_mirid.rfind('/')
+    if last_slash_index == -1:
+        return None
+
+    beginning = xms_mirid[:last_slash_index]
+    principal_name = xms_mirid[last_slash_index + 1:]
+
+    if not principal_name or not beginning.lower().endswith("providers/microsoft.managedidentity/userassignedidentities"):
+        return None
+
+    return principal_name
+
 
 async def get_entra_conninfo(credential: TokenCredential | AsyncTokenCredential | None) -> dict[str, str]:
     """Obtains connection information from Entra authentication for Azure PostgreSQL.
@@ -101,13 +128,35 @@ async def get_entra_conninfo(credential: TokenCredential | AsyncTokenCredential 
     """
     # Fetch a new token and extract the username
     if isinstance(credential, AsyncTokenCredential):
-        token = await get_entra_token_async(credential)
+        token = await get_entra_token_async(credential, AZURE_DB_FOR_POSTGRES_SCOPE)
     else:
-        token = get_entra_token(credential)
+        token = get_entra_token(credential, AZURE_DB_FOR_POSTGRES_SCOPE)
     claims = decode_jwt(token)
-    username = claims.get("upn") or claims.get("preferred_username") or claims.get("unique_name")
+    username = (
+        parse_principal_name(claims.get("xms_mirid"))
+        or claims.get("upn")
+        or claims.get("preferred_username")
+        or claims.get("unique_name")
+    )
     if not username:
-        raise ValueError("Could not extract username from token. Have you logged in?")
+        # Fall back to management scope ONLY to discover username
+        if isinstance(credential, AsyncTokenCredential):
+            token = await get_entra_token_async(credential, AZURE_MANAGEMENT_SCOPE)
+        else:
+            token = get_entra_token(credential, AZURE_MANAGEMENT_SCOPE)
+        claims = decode_jwt(token)
+        username = (
+            parse_principal_name(claims.get("xms_mirid"))
+            or claims.get("upn")
+            or claims.get("preferred_username")
+            or claims.get("unique_name")
+        )
+
+    if not username:
+        raise ValueError(
+            "Could not determine username from token claims. "
+            "Ensure the identity has the proper Azure Entra ID attributes."
+        )
 
     return {"user": username, "password": token}
 

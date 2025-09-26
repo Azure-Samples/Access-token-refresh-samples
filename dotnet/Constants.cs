@@ -11,4 +11,5 @@ public static class Constants
     /// The scope for the AzureDBForPostgres service, to be used with Entra.
     /// </summary>
     public const string AzureDBForPostgresScope = "https://ossrdbms-aad.database.windows.net/.default";
+    public const string AzureManagementScope = "https://management.azure.com/.default";
 }
