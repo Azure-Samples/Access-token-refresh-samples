@@ -14,6 +14,24 @@ To support this, we’ve created extension methods for both Npgsql (for .NET) an
 
 ## Python Usage
 
+Note: this section covers two related but different scenarios — running the included sample, and reusing the sample code in your own project. Running the sample (see the "Prerequisites" below) requires installing the dependencies in `python/requirements.txt` and optionally using the `.env` file in the `python/` folder. If instead you are copying the sample code into your own project, you only need the parts you use (for example `entra_connection.py`) and you may obtain connection details however your application does (configuration service, secrets manager, environment variables, etc.).
+
+When reusing the code, import the `AsyncEntraConnection` class and pass it as the `connection_class` when creating a `psycopg_pool.AsyncConnectionPool`. Example:
+
+```python
+from entra_connection import AsyncEntraConnection
+from psycopg_pool import AsyncConnectionPool
+
+pool = AsyncConnectionPool(
+  min_size=1,
+  max_size=10,
+  connection_class=AsyncEntraConnection,
+  kwargs=dict(host="your-host", dbname="your-db", sslmode="require"),
+)
+```
+
+See `python/sample.py` for a complete runnable example that shows how the sample wires up `AsyncEntraConnection` and loads configuration from `.env` for demo purposes.
+
 ### Prerequisites
 - Python 3.8+
 - Install dependencies:
@@ -56,22 +74,33 @@ database = os.getenv("DATABASE")
 
 For automatic loading from `.env`, install `python-dotenv` and uncomment the relevant line above.
 
-### How Token Refresh is Implemented in Python
+### How Token refresh works (Python)
 
-The Python implementation uses `psycopg3` and Azure Identity libraries to enable Entra ID authentication for PostgreSQL connections. Here’s how it works:
+This repository provides an `AsyncEntraConnection` class (see `python/entra_connection.py`) that encapsulates Entra ID token acquisition and uses the token as the database password for each connection.
 
-- **Async Token Acquisition:**
-  - Uses Azure Identity’s `DefaultAzureCredential` to acquire access tokens for Entra-ID in Azure Database for PostgreSQL.
-  - The token is fetched asynchronously to avoid blocking the event loop, making it suitable for async applications.
-- **Connection Pool Integration:**
-  - Integrates with `psycopg_pool.AsyncConnectionPool` to provide tokens as passwords for each connection.
-  - Ensures each connection uses a fresh, valid token by acquiring it on demand.
-- **Username Extraction:**
-  - Extracts the username from the token claims, to set the correct database user.
-- **Sample Usage:**
-  - The `sample.py` file demonstrates how to set up the async connection pool and use Entra ID tokens for authentication.
+Key points:
 
-This design provides secure, scalable, and non-blocking authentication for PostgreSQL in Python applications using Entra ID.
+- psycopg's connection pools accept a `connection_class` parameter. Passing `AsyncEntraConnection` lets you override how connections are created and authenticated so the pool transparently uses Entra ID tokens instead of a static password.
+- `AsyncEntraConnection` uses an Azure Identity `TokenCredential` (by default `DefaultAzureCredential`) to request access tokens scoped for Azure Database for PostgreSQL. Tokens are acquired asynchronously and injected into the connection handshake as the password.
+- The class also parses token claims when necessary to determine the correct database username (for example, from `upn` or `preferred_username`) if a username isn't provided in the connection kwargs.
+- Because tokens expire, the connection class fetches a fresh token on demand (for each new connection or when the pool re-creates connections), avoiding the need for separate refresh threads.
+
+Minimal usage example (repeated here for clarity):
+
+```python
+from entra_connection import AsyncEntraConnection
+from psycopg_pool import AsyncConnectionPool
+
+pool = AsyncConnectionPool(
+    min_size=1,
+    max_size=10,
+    connection_class=AsyncEntraConnection,
+    kwargs=dict(host="your-host", dbname="your-db", sslmode="require"),
+)
+```
+
+Use `python/sample.py` as a runnable demo that shows loading configuration from `.env` and creating the pool. If you copy `AsyncEntraConnection` into your own project you don't need the sample's `.env` or exact runtime layout — just supply host/DB settings however your application normally gets configuration.
+
 
 ## Dotnet Usage
 

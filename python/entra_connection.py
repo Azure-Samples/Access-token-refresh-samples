@@ -7,7 +7,6 @@ to this repository and can be used in any project that requires Entra authentica
 
 For example:
     
-    from pg_sk_examples.entra_connection import AsyncEntraConnection
     from psycopg_pool import AsyncConnectionPool
 
     async with AsyncConnectionPool("<connection string>", connection_class=AsyncEntraConnection) as pool:

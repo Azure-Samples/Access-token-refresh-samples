@@ -1,3 +1,5 @@
 azure-identity
 psycopg-pool
 asyncio
+dotenv
+psycopg[binary,pool]
