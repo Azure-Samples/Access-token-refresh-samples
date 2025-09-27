@@ -6,7 +6,6 @@ This repository demonstrates how to implement samples for refreshing access toke
 - [Overview](#overview)
 - [Python Usage](#python-usage)
 - [Dotnet Usage](#dotnet-usage)
-- [Configuration](#configuration)
 
 ## Overview
 Access tokens are essential for securely accessing protected resources in Microsoft Entra ID. However, since they expire after a set duration, applications need a reliable refresh mechanism to maintain seamless authentication without interrupting the user experience.
