@@ -1,6 +1,6 @@
-# Access Token Refresh with Entra ID
+# Access Token Refresh with Entra ID for Azure Database for PostgreSQL
 
-This repository demonstrates how to implement samples for refreshing access tokens for Microsoft Entra ID (formerly Azure AD) in both Python and .NET.
+This repository provides sample implementations in Python and .NET for refreshing access tokens using Microsoft Entra ID (formerly Azure AD), while connecting to Azure Database for PostgreSQL.
 
 ## Table of Contents
 - [Overview](#overview)
