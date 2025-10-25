@@ -29,18 +29,21 @@ public static class NpgsqlDataSourceBuilderExtensions
     private static readonly TokenRequestContext s_azureDBForPostgresTokenRequestContext = new([Constants.AzureDBForPostgresScope]);
     private static readonly TokenRequestContext s_managementTokenRequestContext = new([Constants.AzureManagementScope]);
 
-    /// <summary>
-    /// Configures the NpgsqlDataSourceBuilder to use Entra authentication.
+ /// <summary>
+    /// Configures the NpgsqlDataSourceBuilder to use Entra ID authentication synchronously.
     /// </summary>
-    /// <param name="dataSourceBuilder">The NpgsqlDataSourceBuilder instance.</param>
-    /// <param name="credential">The TokenCredential to use for authentication. If not provided, DefaultAzureCredential will be used.</param>
-    /// <returns>The configured NpgsqlDataSourceBuilder instance.</returns>
+    /// <param name="dataSourceBuilder">The NpgsqlDataSourceBuilder to configure.</param>
+    /// <param name="credential">The TokenCredential to use for authentication. If null, DefaultAzureCredential is used.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>The configured NpgsqlDataSourceBuilder.</returns>
     public static NpgsqlDataSourceBuilder UseEntraAuthentication(this NpgsqlDataSourceBuilder dataSourceBuilder, TokenCredential? credential = default, CancellationToken cancellationToken = default)
     {
         credential ??= new DefaultAzureCredential();
 
         if (dataSourceBuilder.ConnectionStringBuilder.Username == null)
         {
+
+            // Ensure to use the management scope, so the token contains user names for all managed identity types - e.g. user and service principal
             var token = credential.GetToken(s_managementTokenRequestContext, cancellationToken);
             var username = TryGetUsernameFromToken(token.Token);
 
@@ -62,18 +65,20 @@ public static class NpgsqlDataSourceBuilderExtensions
     }
 
     /// <summary>
-    /// Asynchronously configures the NpgsqlDataSourceBuilder to use Entra authentication.
+    /// Configures the NpgsqlDataSourceBuilder to use Entra ID authentication asynchronously.
     /// </summary>
-    /// <param name="dataSourceBuilder">The NpgsqlDataSourceBuilder instance.</param>
-    /// <param name="credential">The TokenCredential to use for authentication. If not provided, DefaultAzureCredential will be used.</param>
-    /// <param name="cancellationToken">A cancellation token to observe while waiting for the task to complete.</param>
-    /// <returns>A task representing the asynchronous operation, with the configured NpgsqlDataSourceBuilder instance as the result.</returns>
+    /// <param name="dataSourceBuilder">The NpgsqlDataSourceBuilder to configure.</param>
+    /// <param name="credential">The TokenCredential to use for authentication. If null, DefaultAzureCredential is used.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the configured NpgsqlDataSourceBuilder.</returns>
     public static async Task<NpgsqlDataSourceBuilder> UseEntraAuthenticationAsync(this NpgsqlDataSourceBuilder dataSourceBuilder, TokenCredential? credential = default, CancellationToken cancellationToken = default)
     {
         credential ??= new DefaultAzureCredential();
 
         if (dataSourceBuilder.ConnectionStringBuilder.Username == null)
         {
+
+            // Ensure to use the management scope, so the token contains user names for all managed identity types - e.g. user and service principal
             var token = await credential.GetTokenAsync(s_managementTokenRequestContext, cancellationToken).ConfigureAwait(false);
             var username = TryGetUsernameFromToken(token.Token);
 
@@ -102,6 +107,7 @@ public static class NpgsqlDataSourceBuilderExtensions
             return token.Token;
         }, async (_, ct) =>
         {
+            // Use the cancellation token provided by Npgsql for async operations
             var token = await credential.GetTokenAsync(tokenRequestContext, ct).ConfigureAwait(false);
             return token.Token;
         });
@@ -139,13 +145,13 @@ public static class NpgsqlDataSourceBuilderExtensions
 
         try
         {
-            // Convert from Base64Url to standard Base64
-            payload = payload.Replace('-', '+').Replace('_', '/');
-
             // Add padding if necessary
             payload = AddBase64Padding(payload);
 
-            // Decode the payload from Base64Url
+            // Convert from Base64Url to standard Base64
+            payload = payload.Replace('-', '+').Replace('_', '/');
+
+            // Decode the payload from Base64
             var decodedBytes = Convert.FromBase64String(payload);
             var decodedPayload = Encoding.UTF8.GetString(decodedBytes);
 
