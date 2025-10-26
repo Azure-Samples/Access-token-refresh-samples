@@ -138,16 +138,29 @@ This repository provides Entra ID authentication samples for Java applications u
 
 ### Running the Examples
 
-**JDBC Example (with HikariCP connection pooling):**
+The project includes two examples:
+- `EntraIdExtensionJdbc.java` - Basic JDBC and HikariCP connection pooling
+- `EntraIdExtensionHibernate.java` - Hibernate ORM with Entra ID authentication
+
+**To switch between examples**, edit the `<mainClass>` property in `pom.xml`:
+
+```xml
+<plugin>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>exec-maven-plugin</artifactId>
+  <version>3.1.0</version>
+  <configuration>
+    <!-- Change this line to switch between examples -->
+    <mainClass>EntraIdExtensionJdbc</mainClass>
+    <!-- Or use: <mainClass>EntraIdExtensionHibernate</mainClass> -->
+  </configuration>
+</plugin>
+```
+
+Then run:
 ```powershell
 cd java
 mvn exec:java
-```
-
-**Hibernate Example:**
-```powershell
-cd java
-mvn exec:java "-Dexec.mainClass=EntraIdExtensionHibernate"
 ```
 
 **Note:** Do not use VS Code's "Run" button directly. Always run through Maven to ensure proper classpath and resource loading.
