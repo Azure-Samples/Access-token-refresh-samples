@@ -5,11 +5,12 @@ This repository provides sample implementations in Python and .NET for refreshin
 ## Table of Contents
 - [Overview](#overview)
 - [Python Usage](#python-usage)
+- [Java Usage](#java-usage)
 - [Dotnet Usage](#dotnet-usage)
 
 ## Overview
 Access tokens are essential for securely accessing protected resources in Microsoft Entra ID. However, since they expire after a set duration, applications need a reliable refresh mechanism to maintain seamless authentication without interrupting the user experience.
-To support this, we’ve created extension methods for both Npgsql (for .NET) and psycopg (for Python). These methods can be easily invoked in your application code to handle token refresh logic, making it simpler to maintain secure and uninterrupted database connections.
+To support this, we've created extension methods for Npgsql (for .NET), psycopg (for Python), and JDBC/Hibernate (for Java). These methods can be easily invoked in your application code to handle token refresh logic, making it simpler to maintain secure and uninterrupted database connections.
 
 ## Python Usage
 
@@ -99,6 +100,139 @@ pool = AsyncConnectionPool(
 ```
 
 Use `python/sample.py` as a runnable demo that shows loading configuration from `.env` and creating the pool. If you copy `AsyncEntraConnection` into your own project you don't need the sample's `.env` or exact runtime layout — just supply host/DB settings however your application normally gets configuration.
+
+
+## Java Usage
+
+This repository provides Entra ID authentication samples for Java applications using PostgreSQL, with support for both plain JDBC and Hibernate ORM.
+
+### Prerequisites
+- Java 17 or higher
+- Maven 3.6+ (for dependency management)
+- Azure Identity Extensions library
+
+### Setup
+
+1. **Install Maven dependencies:**
+
+   The project includes a `pom.xml` file with all required dependencies. Navigate to the `java` folder and run:
+
+   ```powershell
+   cd java
+   mvn clean compile
+   ```
+
+2. **Configure database connection:**
+
+   Create or edit `application.properties` in the `java` folder:
+
+   ```properties
+   url=jdbc:postgresql://<your-server>.postgres.database.azure.com:5432/<database>?sslmode=require&authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin
+   user=<your-username>@<your-domain>.onmicrosoft.com
+   ```
+
+   Replace:
+   - `<your-server>` with your Azure PostgreSQL server hostname
+   - `<database>` with your database name
+   - `<your-username>@<your-domain>.onmicrosoft.com` with your Entra ID user principal name
+
+### Running the Examples
+
+**JDBC Example (with HikariCP connection pooling):**
+```powershell
+cd java
+mvn exec:java
+```
+
+**Hibernate Example:**
+```powershell
+cd java
+mvn exec:java "-Dexec.mainClass=EntraIdExtensionHibernate"
+```
+
+**Note:** Do not use VS Code's "Run" button directly. Always run through Maven to ensure proper classpath and resource loading.
+
+### JDBC Usage
+
+The JDBC example demonstrates two approaches:
+
+1. **Basic JDBC Connection:**
+   ```java
+   Properties props = new Properties();
+   props.setProperty("user", user);
+   
+   try (Connection conn = DriverManager.getConnection(url, props)) {
+       // Use connection
+   }
+   ```
+
+2. **Connection Pooling with HikariCP:**
+   ```java
+   HikariConfig config = new HikariConfig();
+   config.setJdbcUrl(jdbcUrl);
+   config.setUsername(user);
+   config.setMaximumPoolSize(10);
+   config.setMinimumIdle(2);
+   config.setMaxLifetime(1800000); // 30 minutes
+   
+   try (HikariDataSource dataSource = new HikariDataSource(config)) {
+       try (Connection conn = dataSource.getConnection()) {
+           // Use connection
+       }
+   }
+   ```
+
+### Hibernate Usage
+
+The Hibernate example shows how to configure Hibernate ORM with Entra ID authentication:
+
+```java
+Configuration configuration = new Configuration();
+configuration.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
+configuration.setProperty("hibernate.connection.url", jdbcUrl);
+configuration.setProperty("hibernate.connection.username", username);
+configuration.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+
+SessionFactory sessionFactory = configuration.buildSessionFactory();
+```
+
+### How Token Refresh Works (Java)
+
+The Azure Identity Extensions library (`azure-identity-extensions`) automatically handles token refresh:
+
+1. **Authentication Plugin**: The JDBC URL includes `authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin` which intercepts connection attempts.
+
+2. **Token Acquisition**: The plugin uses `DefaultAzureCredential` to automatically acquire Entra ID access tokens scoped for Azure Database for PostgreSQL.
+
+3. **Automatic Refresh**: 
+   - For single connections: A fresh token is acquired for each connection
+   - For connection pools: Tokens are refreshed automatically when connections are created or revalidated
+   - The `maxLifetime` setting in HikariCP (30 minutes) ensures connections are recycled before token expiration
+
+4. **Credential Discovery**: `DefaultAzureCredential` attempts authentication in this order:
+   - Environment variables
+   - Managed Identity
+   - Azure CLI credentials
+   - IntelliJ credentials
+   - VS Code credentials
+   - And more...
+
+This design ensures tokens are always valid without manual refresh logic, and connection pools automatically handle token lifecycle.
+
+### Key Configuration Properties
+
+For optimal token refresh behavior with connection pooling:
+
+```java
+config.setMaxLifetime(1800000);    // 30 minutes - less than token lifetime
+config.setIdleTimeout(600000);      // 10 minutes - release idle connections
+config.setConnectionTimeout(30000); // 30 seconds - connection acquisition timeout
+```
+
+These settings ensure:
+- Connections are recycled before tokens expire (Entra ID tokens typically last 60-90 minutes)
+- Idle connections don't hold expired tokens
+- New connections get fresh tokens automatically
 
 
 ## Dotnet Usage
