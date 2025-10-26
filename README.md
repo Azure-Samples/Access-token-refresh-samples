@@ -232,22 +232,6 @@ The Azure Identity Extensions library (`azure-identity-extensions`) automaticall
 
 This design ensures tokens are always valid without manual refresh logic, and connection pools automatically handle token lifecycle.
 
-### Key Configuration Properties
-
-For optimal token refresh behavior with connection pooling:
-
-```java
-config.setMaxLifetime(1800000);    // 30 minutes - less than token lifetime
-config.setIdleTimeout(600000);      // 10 minutes - release idle connections
-config.setConnectionTimeout(30000); // 30 seconds - connection acquisition timeout
-```
-
-These settings ensure:
-- Connections are recycled before tokens expire (Entra ID tokens typically last 60-90 minutes)
-- Idle connections don't hold expired tokens
-- New connections get fresh tokens automatically
-
-
 ## Dotnet Usage
 
 ### Prerequisites
