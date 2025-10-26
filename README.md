@@ -13,23 +13,15 @@ To support this, we’ve created extension methods for both Npgsql (for .NET) an
 
 ## Python Usage
 
-Note: this section covers two related but different scenarios — running the included sample, and reusing the sample code in your own project. Running the sample (see the "Prerequisites" below) requires installing the dependencies in `python/requirements.txt` and optionally using the `.env` file in the `python/` folder. If instead you are copying the sample code into your own project, you only need the parts you use (for example `entra_connection.py`) and you may obtain connection details however your application does (configuration service, secrets manager, environment variables, etc.).
+This repository provides Entra ID authentication samples for three popular Python PostgreSQL libraries:
 
-When reusing the code, import the `AsyncEntraConnection` class and pass it as the `connection_class` when creating a `psycopg_pool.AsyncConnectionPool`. Example:
+- **psycopg2** - Legacy psycopg library (synchronous only)
+- **psycopg3** - Modern psycopg library with both synchronous and asynchronous support
+- **SQLAlchemy** - High-level ORM/database toolkit with both synchronous and asynchronous support
 
-```python
-from entra_connection import AsyncEntraConnection
-from psycopg_pool import AsyncConnectionPool
+Each implementation is located in its respective folder under `python/` with its own `entra_connection.py` and `sample.py` files.
 
-pool = AsyncConnectionPool(
-  min_size=1,
-  max_size=10,
-  connection_class=AsyncEntraConnection,
-  kwargs=dict(host="your-host", dbname="your-db", sslmode="require"),
-)
-```
-
-See `python/sample.py` for a complete runnable example that shows how the sample wires up `AsyncEntraConnection` and loads configuration from `.env` for demo purposes.
+Note: This section covers two related scenarios — running the included samples, and reusing the sample code in your own project. Running the samples requires installing all dependencies in `python/requirements.txt` and using the `.env` file in the `python/` folder. If you're copying sample code into your own project, you only need the parts you use (for example, just the `psycopg3/entra_connection.py` file) and can obtain connection details however your application does (configuration service, secrets manager, environment variables, etc.).
 
 ### Prerequisites
 - Python 3.8+
@@ -39,17 +31,9 @@ See `python/sample.py` for a complete runnable example that shows how the sample
   pip install -r requirements.txt
   ```
 
-### Example Usage
-1. Configure your hostname, databasename, username and password in the `.env` file.
-2. Use the provided `entra_connection.py` to obtain and refresh tokens:
-   ```python
-   from entra_connection import get_token, refresh_token
-   ```
-3. See `sample.py` for a complete example.
-
 ### Environment Variables (.env)
 
-You can store sensitive information such as hostname and database name in a `.env` file in the `python` folder. Example:
+Create a `.env` file in the `python` folder with your database connection details:
 
 ```env
 HOSTNAME=<your-db-hostname>
@@ -58,47 +42,157 @@ DATABASE=<your-db-name>
 
 Make sure to add `.env` to your `.gitignore` file to avoid committing secrets to source control.
 
-#### Using .env in sample.py
+### psycopg2 Usage
 
-To load environment variables in `sample.py`, you can use the `os` module:
-
-```python
-import os
-# If using python-dotenv, uncomment below:
-# from dotenv import load_dotenv; load_dotenv()
-
-hostname = os.getenv("HOSTNAME")
-database = os.getenv("DATABASE")
-```
-
-For automatic loading from `.env`, install `python-dotenv` and uncomment the relevant line above.
-
-### How Token refresh works (Python)
-
-This repository provides an `AsyncEntraConnection` class (see `python/entra_connection.py`) that encapsulates Entra ID token acquisition and uses the token as the database password for each connection.
-
-Key points:
-
-- psycopg's connection pools accept a `connection_class` parameter. Passing `AsyncEntraConnection` lets you override how connections are created and authenticated so the pool transparently uses Entra ID tokens instead of a static password.
-- `AsyncEntraConnection` uses an Azure Identity `TokenCredential` (by default `DefaultAzureCredential`) to request access tokens scoped for Azure Database for PostgreSQL. Tokens are acquired asynchronously and injected into the connection handshake as the password.
-- The class also parses token claims when necessary to determine the correct database username (for example, from `upn` or `preferred_username`) if a username isn't provided in the connection kwargs.
-- Because tokens expire, the connection class fetches a fresh token on demand (for each new connection or when the pool re-creates connections), avoiding the need for separate refresh threads.
-
-Minimal usage example (repeated here for clarity):
+For legacy applications using psycopg2 (synchronous only):
 
 ```python
-from entra_connection import AsyncEntraConnection
-from psycopg_pool import AsyncConnectionPool
+from psycopg2.entra_connection import EntraConnection
+from psycopg2.extensions import connection
 
-pool = AsyncConnectionPool(
-    min_size=1,
-    max_size=10,
-    connection_class=AsyncEntraConnection,
-    kwargs=dict(host="your-host", dbname="your-db", sslmode="require"),
+# Use EntraConnection as your connection class
+conn = EntraConnection.connect(
+    host="your-host",
+    dbname="your-db",
+    sslmode="require"
 )
 ```
 
-Use `python/sample.py` as a runnable demo that shows loading configuration from `.env` and creating the pool. If you copy `AsyncEntraConnection` into your own project you don't need the sample's `.env` or exact runtime layout — just supply host/DB settings however your application normally gets configuration.
+Run the sample:
+```powershell
+cd python
+python psycopg2/sample.py
+```
+
+### psycopg3 Usage
+
+For modern applications using psycopg3, which supports both synchronous and asynchronous connections:
+
+**Synchronous Example:**
+```python
+from psycopg3.entra_connection import EntraConnection
+from psycopg_pool import ConnectionPool
+
+pool = ConnectionPool(
+    conninfo=f"postgresql://{hostname}:5432/{database}",
+    min_size=1,
+    max_size=5,
+    connection_class=EntraConnection,
+)
+```
+
+**Asynchronous Example:**
+```python
+from psycopg3.async_entra_connection import AsyncEntraConnection
+from psycopg_pool import AsyncConnectionPool
+
+pool = AsyncConnectionPool(
+    conninfo=f"postgresql://{hostname}:5432/{database}",
+    min_size=1,
+    max_size=5,
+    connection_class=AsyncEntraConnection,
+)
+```
+
+Run the sample:
+```powershell
+cd python
+# Run both sync and async examples
+python psycopg3/sample.py
+
+# Or run only sync
+python psycopg3/sample.py --mode sync
+
+# Or run only async
+python psycopg3/sample.py --mode async
+```
+
+See `python/psycopg3/sample.py` for complete runnable examples.
+
+### SQLAlchemy Usage
+
+For applications using SQLAlchemy ORM, which supports both synchronous and asynchronous engines:
+
+**Synchronous Example:**
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.entra_connection import enable_entra_authentication
+
+engine = create_engine(f"postgresql+psycopg://{hostname}:5432/{database}")
+enable_entra_authentication(engine)
+```
+
+**Asynchronous Example:**
+```python
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.async_entra_connection import enable_entra_authentication_async
+
+engine = create_async_engine(f"postgresql+psycopg://{hostname}:5432/{database}")
+enable_entra_authentication_async(engine)
+```
+
+Run the sample:
+```powershell
+cd python
+# Run both sync and async examples
+python sqlalchemy/sample.py
+
+# Or run only sync
+python sqlalchemy/sample.py --mode sync
+
+# Or run only async
+python sqlalchemy/sample.py --mode async
+```
+
+See `python/sqlalchemy/sample.py` for complete runnable examples.
+
+### How Token Refresh Works (Python)
+
+All three Python implementations use Azure Identity's `TokenCredential` (by default `DefaultAzureCredential`) to acquire Entra ID access tokens scoped for Azure Database for PostgreSQL. The tokens are used as the database password for authentication.
+
+#### psycopg2 Implementation
+
+The `EntraConnection` class extends psycopg2's `connection` class:
+
+- Overrides the `connect()` method to fetch Entra ID tokens before establishing the connection
+- Uses synchronous token acquisition via `get_entra_conninfo()`
+- Parses token claims to extract the database username from `upn`, `preferred_username`, or other claims
+- Each new connection automatically gets a fresh token
+
+#### psycopg3 Implementation
+
+psycopg3 provides both synchronous and asynchronous connection classes:
+
+- **`EntraConnection`**: Synchronous connections using `get_entra_conninfo()`
+- **`AsyncEntraConnection`**: Asynchronous connections using `get_entra_conninfo_async()`
+- Both classes integrate with psycopg's connection pools via the `connection_class` parameter
+- Tokens are acquired on-demand for each new connection, avoiding separate refresh threads
+- Username extraction follows the same claim hierarchy as psycopg2
+
+#### SQLAlchemy Implementation
+
+SQLAlchemy uses event listeners to inject Entra authentication:
+
+- **`enable_entra_authentication(engine)`**: For synchronous SQLAlchemy engines
+- **`enable_entra_authentication_async(engine)`**: For asynchronous SQLAlchemy engines
+- Registers a `do_connect` event handler that runs before each connection is established
+- The event handler fetches fresh tokens and injects them as connection parameters
+- Works with any SQLAlchemy-compatible PostgreSQL driver (uses psycopg by default)
+
+**Key Benefits Across All Implementations:**
+
+- Automatic token refresh on each connection (tokens expire after ~1 hour)
+- No manual token management or refresh threads required
+- Seamless integration with connection pooling
+- Works with `DefaultAzureCredential` for automatic credential discovery (Managed Identity, Azure CLI, etc.)
+
+Example token refresh flow:
+
+1. Application requests a database connection from the pool
+2. The custom connection class or event handler intercepts the connection creation
+3. A fresh Entra ID token is requested from Azure Identity
+4. The token is used as the password for PostgreSQL authentication
+5. Connection is established and returned to the application
 
 
 ## Dotnet Usage
