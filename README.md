@@ -132,13 +132,13 @@ Use `python/sample.py` as a runnable demo that shows loading configuration from 
 
   ```powershell
   # Run for .NET 8.0
-  dotnet run --project PGSKExamples.csproj -f net8.0
+  dotnet run --project PGEntraExamples.csproj -f net8.0
 
   # Or run for .NET 9.0
-  dotnet run --project PGSKExamples.csproj -f net9.0
+  dotnet run --project PGEntraExamples.csproj -f net9.0
 
   # Or (if built with .NET 10 SDK) run for .NET 10.0
-  dotnet run --project PGSKExamples.csproj -f net10.0
+  dotnet run --project PGEntraExamples.csproj -f net10.0
   ```
 4. Use the logic in `NpgsqlDataSourceBuilderExtensions.cs` and `sample.cs` to handle token refresh.
 
