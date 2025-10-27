@@ -162,7 +162,7 @@ To integrate Entra ID authentication into your own JavaScript/Node.js project, f
 2. **Install required dependencies:**
    
    ```bash
-   npm install pg sequelize
+   npm install pg sequelize @azure/identity
    ```
    
    Note: Install only the libraries you need (`pg` and/or `sequelize`).
