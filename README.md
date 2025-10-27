@@ -151,50 +151,69 @@ cd javascript
 npm run sequelize
 ```
 
-### pg (node-postgres) Usage
+### Using in Your Own Project
 
-The `pg-sample.js` demonstrates connection pooling with automatic token refresh:
+To integrate Entra ID authentication into your own JavaScript/Node.js project, follow these steps:
 
-```javascript
-import pg from "pg";
-import { getEntraTokenPassword } from './entra-connection.js';
+1. **Copy the helper module:**
+   
+   Copy `javascript/entra-connection.js` from this repository into your project.
 
-const { Pool } = pg;
+2. **Install required dependencies:**
+   
+   ```bash
+   npm install pg sequelize @azure/identity dotenv
+   ```
+   
+   Note: Install only the libraries you need (`pg` and/or `sequelize`).
 
-// Get token once at startup
-const token = await getEntraTokenPassword();
+3. **Import and use in your code:**
 
-const pool = new Pool({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT || 5432),
-  database: process.env.PGDATABASE,
-  user: process.env.PGUSER,
-  password: token,
-  ssl: { rejectUnauthorized: false }
-});
-```
+   **For pg (node-postgres):**
+   ```javascript
+   import pg from "pg";
+   import { getEntraTokenPassword } from './entra-connection.js';
+   
+   const { Pool } = pg;
+   
+   const pool = new Pool({
+     host: 'your-server.postgres.database.azure.com',
+     port: 5432,
+     database: 'your-database',
+     user: 'your-user@yourdomain.onmicrosoft.com',
+     password: getEntraTokenPassword,  // Function callback
+     ssl: { rejectUnauthorized: false }
+   });
+   ```
 
-### Sequelize Usage
+   **For Sequelize:**
+   ```javascript
+   import { Sequelize } from 'sequelize';
+   import { configureEntraIdAuth } from './entra-connection.js';
+   
+   const sequelize = new Sequelize({
+     dialect: 'postgres',
+     host: 'your-server.postgres.database.azure.com',
+     port: 5432,
+     database: 'your-database',
+     dialectOptions: {
+       ssl: { rejectUnauthorized: false }
+     }
+   });
+   
+   // Enable automatic token refresh
+   configureEntraIdAuth(sequelize);
+   ```
 
-The `sequelize-sample.js` shows how to configure Sequelize with Entra ID authentication using hooks:
+4. **Configure authentication:**
+   
+   Ensure your application has access to Azure credentials through one of these methods:
+   - Azure CLI: Run `az login` before running your app
+   - Environment variables: Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+   - Managed Identity: When running on Azure (App Service, VM, etc.)
+   - VS Code: Sign in to Azure extension
 
-```javascript
-import { Sequelize } from 'sequelize';
-import { configureEntraIdAuth } from './entra-connection.js';
-
-const sequelize = new Sequelize({
-  dialect: 'postgres',
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT || 5432),
-  database: process.env.PGDATABASE,
-  dialectOptions: {
-    ssl: { rejectUnauthorized: false }
-  }
-});
-
-// Configure automatic token refresh
-configureEntraIdAuth(sequelize);
-```
+The `entra-connection.js` module handles token acquisition, caching, and username extraction from JWT claims. You don't need to modify it—just import and use the functions as shown above.
 
 ### How Token Refresh Works (JavaScript)
 
@@ -208,7 +227,7 @@ The `entra-connection.js` module provides helper functions for Entra ID authenti
    - The username is derived from token claims (upn, appid) if needed
 
 3. **Token Lifecycle**:
-   - **pg example**: Token is fetched once at startup. For long-running applications, consider implementing periodic token refresh (tokens typically expire after 60-90 minutes).
+   - **pg example**: Pass `getEntraTokenPassword` as a callback to the `password` field. The `pg` library will call this function dynamically each time a new connection is established, ensuring fresh tokens are always used.
    - **Sequelize example**: Token is refreshed automatically before each connection via the `beforeConnect` hook.
 
 4. **Credential Discovery**: `DefaultAzureCredential` attempts authentication in this order:
