@@ -18,7 +18,7 @@ from pathlib import Path
 # Add parent directory (python folder) to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core import get_entra_conninfo
+from shared import get_entra_conninfo
 from errors import (
     CredentialValueError,
     EntraConnectionValueError,

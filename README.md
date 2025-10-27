@@ -42,21 +42,7 @@ DATABASE=<your-db-name>
 
 Make sure to add `.env` to your `.gitignore` file to avoid committing secrets to source control.
 
-### psycopg2 Usage
-
-For legacy applications using psycopg2 (synchronous only):
-
-```python
-from psycopg2.entra_connection import EntraConnection
-from psycopg2.extensions import connection
-
-# Use EntraConnection as your connection class
-conn = EntraConnection.connect(
-    host="your-host",
-    dbname="your-db",
-    sslmode="require"
-)
-```
+### Psycopg2 Usage
 
 Run the sample:
 ```powershell
@@ -64,35 +50,9 @@ cd python
 python psycopg2/sample.py
 ```
 
-### psycopg3 Usage
+See `python/psycopg2/sample.py` for complete runnable examples.
 
-For modern applications using psycopg3, which supports both synchronous and asynchronous connections:
-
-**Synchronous Example:**
-```python
-from psycopg3.entra_connection import EntraConnection
-from psycopg_pool import ConnectionPool
-
-pool = ConnectionPool(
-    conninfo=f"postgresql://{hostname}:5432/{database}",
-    min_size=1,
-    max_size=5,
-    connection_class=EntraConnection,
-)
-```
-
-**Asynchronous Example:**
-```python
-from psycopg3.async_entra_connection import AsyncEntraConnection
-from psycopg_pool import AsyncConnectionPool
-
-pool = AsyncConnectionPool(
-    conninfo=f"postgresql://{hostname}:5432/{database}",
-    min_size=1,
-    max_size=5,
-    connection_class=AsyncEntraConnection,
-)
-```
+### Psycopg3 Usage
 
 Run the sample:
 ```powershell
@@ -111,26 +71,6 @@ See `python/psycopg3/sample.py` for complete runnable examples.
 
 ### SQLAlchemy Usage
 
-For applications using SQLAlchemy ORM, which supports both synchronous and asynchronous engines:
-
-**Synchronous Example:**
-```python
-from sqlalchemy import create_engine
-from sqlalchemy.entra_connection import enable_entra_authentication
-
-engine = create_engine(f"postgresql+psycopg://{hostname}:5432/{database}")
-enable_entra_authentication(engine)
-```
-
-**Asynchronous Example:**
-```python
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.async_entra_connection import enable_entra_authentication_async
-
-engine = create_async_engine(f"postgresql+psycopg://{hostname}:5432/{database}")
-enable_entra_authentication_async(engine)
-```
-
 Run the sample:
 ```powershell
 cd python
@@ -145,6 +85,160 @@ python sqlalchemy/sample.py --mode async
 ```
 
 See `python/sqlalchemy/sample.py` for complete runnable examples.
+
+### Using in Your Own Project
+
+To integrate Entra ID authentication into your own Python project, follow these steps:
+
+#### For psycopg2
+
+1. **Copy the helper module:**
+   
+   Copy `python/psycopg2/entra_connection.py` and `python/shared.py` from this repository into your project.
+
+2. **Install required dependencies:**
+   
+   ```bash
+   pip install psycopg2-binary azure-identity
+   ```
+
+3. **Import and use in your code:**
+
+   ```python
+   from entra_connection import EntraConnection
+   
+   # Create a connection with Entra ID authentication
+   conn = EntraConnection.connect(
+       host='your-server.postgres.database.azure.com',
+       dbname='your-database',
+       sslmode='require'
+   )
+   
+   # Use the connection
+   with conn.cursor() as cur:
+       cur.execute("SELECT current_user")
+       print(cur.fetchone())
+   
+   conn.close()
+   ```
+
+#### For psycopg3
+
+1. **Copy the helper modules:**
+   
+   Copy `python/psycopg3/entra_connection.py`, `python/psycopg3/async_entra_connection.py`, and `python/shared.py` from this repository into your project.
+
+2. **Install required dependencies:**
+   
+   ```bash
+   pip install psycopg[binary] psycopg-pool azure-identity
+   ```
+
+3. **Import and use in your code:**
+
+   **Synchronous:**
+   ```python
+   from entra_connection import EntraConnection
+   from psycopg_pool import ConnectionPool
+   
+   pool = ConnectionPool(
+       conninfo="postgresql://your-server.postgres.database.azure.com:5432/your-database",
+       min_size=1,
+       max_size=5,
+       connection_class=EntraConnection,
+       kwargs=dict(sslmode="require")
+   )
+   
+   # Use the pool
+   with pool.connection() as conn:
+       with conn.cursor() as cur:
+           cur.execute("SELECT current_user")
+           print(cur.fetchone())
+   ```
+
+   **Asynchronous:**
+   ```python
+   import asyncio
+   from async_entra_connection import AsyncEntraConnection
+   from psycopg_pool import AsyncConnectionPool
+   
+   async def main():
+       pool = AsyncConnectionPool(
+           conninfo="postgresql://your-server.postgres.database.azure.com:5432/your-database",
+           min_size=1,
+           max_size=5,
+           connection_class=AsyncEntraConnection,
+           kwargs=dict(sslmode="require")
+       )
+       
+       async with pool.connection() as conn:
+           async with conn.cursor() as cur:
+               await cur.execute("SELECT current_user")
+               print(await cur.fetchone())
+       
+       await pool.close()
+   
+   asyncio.run(main())
+   ```
+
+#### For SQLAlchemy
+
+1. **Copy the helper modules:**
+   
+   Copy `python/sqlalchemy/entra_connection.py`, `python/sqlalchemy/async_entra_connection.py`, and `python/shared.py` from this repository into your project.
+
+2. **Install required dependencies:**
+   
+   ```bash
+   pip install sqlalchemy psycopg[binary] azure-identity
+   ```
+
+3. **Import and use in your code:**
+
+   **Synchronous:**
+   ```python
+   from sqlalchemy import create_engine, text
+   from entra_connection import enable_entra_authentication
+   
+   engine = create_engine("postgresql+psycopg://your-server.postgres.database.azure.com:5432/your-database")
+   enable_entra_authentication(engine)
+   
+   # Use the engine
+   with engine.connect() as conn:
+       result = conn.execute(text("SELECT current_user"))
+       print(result.fetchone())
+   ```
+
+   **Asynchronous:**
+   ```python
+   import asyncio
+   from sqlalchemy.ext.asyncio import create_async_engine
+   from sqlalchemy import text
+   from async_entra_connection import enable_entra_authentication_async
+   
+   async def main():
+       engine = create_async_engine("postgresql+psycopg://your-server.postgres.database.azure.com:5432/your-database")
+       enable_entra_authentication_async(engine)
+       
+       async with engine.connect() as conn:
+           result = await conn.execute(text("SELECT current_user"))
+           print(result.fetchone())
+       
+       await engine.dispose()
+   
+   asyncio.run(main())
+   ```
+
+#### Configure Authentication
+
+Ensure your application has access to Azure credentials through one of these methods:
+- **Azure CLI**: Run `az login` before running your app
+- **Environment variables**: Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+- **Managed Identity**: When running on Azure (App Service, VM, Container Apps, etc.)
+- **VS Code**: Sign in to Azure extension
+- **Other**: Any method supported by `DefaultAzureCredential`
+
+The helper modules handle token acquisition, automatic refresh, and username extraction from JWT claims. You don't need to modify them—just import and use as shown above.
 
 ### How Token Refresh Works (Python)
 
@@ -193,7 +287,6 @@ Example token refresh flow:
 3. A fresh Entra ID token is requested from Azure Identity
 4. The token is used as the password for PostgreSQL authentication
 5. Connection is established and returned to the application
-
 
 ## Dotnet Usage
 
