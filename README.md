@@ -163,51 +163,11 @@ cd java
 mvn exec:java
 ```
 
-**Note:** Do not use VS Code's "Run" button directly. Always run through Maven to ensure proper classpath and resource loading.
+**Note:** Do not use VS Code's "Run" button directly. Run examples through Maven to ensure proper classpath and resource loading.
 
-### JDBC Usage
+### Using in Your Own Project
 
-The JDBC example demonstrates two approaches:
-
-1. **Basic JDBC Connection:**
-   ```java
-   Properties props = new Properties();
-   props.setProperty("user", user);
-   
-   try (Connection conn = DriverManager.getConnection(url, props)) {
-       // Use connection
-   }
-   ```
-
-2. **Connection Pooling with HikariCP:**
-   ```java
-   HikariConfig config = new HikariConfig();
-   config.setJdbcUrl(jdbcUrl);
-   config.setUsername(user);
-   config.setMaximumPoolSize(10);
-   config.setMinimumIdle(2);
-   config.setMaxLifetime(1800000); // 30 minutes
-   
-   try (HikariDataSource dataSource = new HikariDataSource(config)) {
-       try (Connection conn = dataSource.getConnection()) {
-           // Use connection
-       }
-   }
-   ```
-
-### Hibernate Usage
-
-The Hibernate example shows how to configure Hibernate ORM with Entra ID authentication:
-
-```java
-Configuration configuration = new Configuration();
-configuration.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
-configuration.setProperty("hibernate.connection.url", jdbcUrl);
-configuration.setProperty("hibernate.connection.username", username);
-configuration.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
-
-SessionFactory sessionFactory = configuration.buildSessionFactory();
-```
+To integrate Entra ID authentication into your own Java project, you can follow the same setup steps for running the examples.
 
 ### How Token Refresh Works (Java)
 
