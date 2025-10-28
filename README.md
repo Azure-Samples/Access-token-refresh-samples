@@ -96,7 +96,7 @@ To integrate Entra ID authentication into your own Python project, follow these 
 
 1. **Copy the helper module:**
    
-   Copy `python/psycopg2/entra_connection.py` and `python/shared.py` from this repository into your project.
+   Copy `python/psycopg2/entra_connection.py`, `python/shared.py`, and `python/errors.py` from this repository into your project.
 
 2. **Install required dependencies:**
    
@@ -128,7 +128,7 @@ To integrate Entra ID authentication into your own Python project, follow these 
 
 1. **Copy the helper modules:**
    
-   Copy `python/psycopg3/entra_connection.py`, `python/psycopg3/async_entra_connection.py`, and `python/shared.py` from this repository into your project.
+   Copy `python/psycopg3/entra_connection.py`, `python/psycopg3/async_entra_connection.py`, `python/shared.py`, and `python/errors.py` from this repository into your project.
 
 2. **Install required dependencies:**
    
@@ -187,7 +187,7 @@ To integrate Entra ID authentication into your own Python project, follow these 
 
 1. **Copy the helper modules:**
    
-   Copy `python/sqlalchemy/entra_connection.py`, `python/sqlalchemy/async_entra_connection.py`, and `python/shared.py` from this repository into your project.
+   Copy `python/sqlalchemy/entra_connection.py`, `python/sqlalchemy/async_entra_connection.py`, `python/shared.py`, and `python/errors.py` from this repository into your project.
 
 2. **Install required dependencies:**
    
@@ -610,7 +610,7 @@ To integrate Entra ID authentication into your own .NET project, follow these st
    Console.WriteLine($"Connected as: {user}");
    ```
 
-   **Asynchronous approach (recommended for ASP.NET Core):**
+   **Asynchronous approach:**
    ```csharp
    using Npgsql;
    using Azure.Identity;
