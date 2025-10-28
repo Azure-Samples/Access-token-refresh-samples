@@ -324,10 +324,6 @@ The `entra-connection.js` module provides helper functions for Entra ID authenti
    - And more...
 
 This design ensures tokens are always valid without manual refresh logic, and connection pools automatically handle token lifecycle.
-   - VS Code credentials
-   - And more...
-
-```
 
 ## Dotnet Usage
 
@@ -338,14 +334,6 @@ This design ensures tokens are always valid without manual refresh logic, and co
 
 ### Example Usage
 1. Copy `appsettings.example.json` to `appsettings.json` and fill in your credentials:
-   ```json
-   {
-    "Host": "<your-server-host-name>",
-    "Database": "<your-database>",
-    "Port": 5432,
-    "SslMode": "Require"
-   }
-   ```
 2. Build the project:
 
   ```powershell
