@@ -3,7 +3,10 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Postgres.EntraAuth;
 
-class Sample
+/// <summary>
+/// This example enables Entra authentication before connecting to the database via NpgsqlConnection.
+/// </summary>
+public class Sample
 {
     private static IConfiguration _configuration = null!;
 
@@ -15,69 +18,53 @@ class Sample
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
+        var connectionString = BuildConnectionString();
 
         Console.WriteLine("Testing Entra Authentication Methods");
         Console.WriteLine("=====================================");
 
         // Test synchronous method
         Console.WriteLine("\n1. Testing UseEntraAuthentication (Synchronous):");
-        TestSyncEntraAuthentication();
+        await ExecuteQueriesWithEntraAuth(connectionString, useAsync: false);
 
         // Test asynchronous method
         Console.WriteLine("\n2. Testing UseEntraAuthenticationAsync (Asynchronous):");
-        await TestAsyncEntraAuthentication();
+        await ExecuteQueriesWithEntraAuth(connectionString, useAsync: true);
 
         Console.WriteLine("\nAll tests completed.");
     }
 
-    private static void TestSyncEntraAuthentication()
+    /// <summary>
+    /// Show how to create a connection to the database with Entra authentication and execute some prompts.
+    /// </summary>
+    /// <param name="connectionString">The PostgreSQL connection string</param>
+    /// <param name="useAsync">If true, uses UseEntraAuthenticationAsync; otherwise uses UseEntraAuthentication</param>
+    private static async Task ExecuteQueriesWithEntraAuth(string connectionString, bool useAsync = false)
     {
-        try
-        {
-            var connectionString = BuildConnectionString();
-            var credential = new DefaultAzureCredential();
-            var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);            
-            // This line uses the extension method provided by dotnet/NpgsqlDataSourceBuilderExtensions.cs
-            // to enable Entra Authentication. If you copy dotnet/NpgsqlDataSourceBuilderExtensions.cs into your
-            // project and add the proper using statement, you should be able to directly call this on a
-            // NpgsqlDataSourceBuilder to enable Entra authentication in your application.
-            dataSourceBuilder.UseEntraAuthentication(credential);
-            using var dataSource = dataSourceBuilder.Build();
-            using var conn = dataSource.OpenConnection();    
-            Console.WriteLine("✓ Successfully connected using synchronous authentication.");    
-            using var cmd = new NpgsqlCommand("SELECT NOW() as current_time, 'sync' as method", conn);
-            var result = cmd.ExecuteScalar();
-            Console.WriteLine($"✓ Query result: {result}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"✗ Synchronous test failed: {ex.Message}");
-        }
-    }
 
-    private static async Task TestAsyncEntraAuthentication()
-    {
-        try
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+
+        // Here, we use the appropriate extension method provided by NpgsqlDataSourceBuilderExtensions.cs
+        // to enable Entra Authentication. This will handle token acquisition, username extraction, and
+        // token refresh as needed. If you copy NpgsqlDataSourceBuilderExtensions.cs into your project and
+        // add the proper using statement, you should be able to directly call this method on a NpgsqlDataSourceBuilder
+        // to enable Entra authentication in your application.
+        if (useAsync)
         {
-            var connectionString = BuildConnectionString();
-            var credential = new DefaultAzureCredential();
-            var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-            // This line uses the extension method provided by dotnet/NpgsqlDataSourceBuilderExtensions.cs
-            // to enable Entra Authentication. If you copy dotnet/NpgsqlDataSourceBuilderExtensions.cs into your
-            // project and add the proper using statement, you should be able to directly call this on a
-            // NpgsqlDataSourceBuilder to enable Entra authentication in your application
-            await dataSourceBuilder.UseEntraAuthenticationAsync(credential);
-            using var dataSource = dataSourceBuilder.Build();
-            using var conn = await dataSource.OpenConnectionAsync();
-            Console.WriteLine("✓ Successfully connected using asynchronous authentication.");
-            using var cmd = new NpgsqlCommand("SELECT NOW() as current_time, 'async' as method", conn);
-            var result = await cmd.ExecuteScalarAsync();
-            Console.WriteLine($"✓ Query result: {result}");
+            await dataSourceBuilder.UseEntraAuthenticationAsync();
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"✗ Asynchronous test failed: {ex.Message}");
+            dataSourceBuilder.UseEntraAuthentication();
         }
+
+        using var dataSource = dataSourceBuilder.Build();
+        await using var connection = await dataSource.OpenConnectionAsync();
+
+        // Get PostgreSQL version
+        using var cmd1 = new NpgsqlCommand("SELECT version()", connection);
+        var version = await cmd1.ExecuteScalarAsync();
+        Console.WriteLine($"PostgreSQL Version: {version}");
     }
 
     private static string BuildConnectionString()

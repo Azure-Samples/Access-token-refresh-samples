@@ -360,13 +360,13 @@ This design ensures tokens are always valid without manual refresh logic, and co
 
   ```powershell
   # Run for .NET 8.0
-  dotnet run --project PGSKExamples.csproj -f net8.0
+  dotnet run --project PGEntraExamples.csproj -f net8.0
 
   # Or run for .NET 9.0
-  dotnet run --project PGSKExamples.csproj -f net9.0
+  dotnet run --project PGEntraExamples.csproj -f net9.0
 
   # Or (if built with .NET 10 SDK) run for .NET 10.0
-  dotnet run --project PGSKExamples.csproj -f net10.0
+  dotnet run --project PGEntraExamples.csproj -f net10.0
   ```
 4. Use the logic in `NpgsqlDataSourceBuilderExtensions.cs` and `sample.cs` to handle token refresh.
 
@@ -396,6 +396,76 @@ dotnet run
 ```
 
 The sample will automatically read from both `appsettings.json` and environment variables, with environment variables taking precedence.
+
+### Using in Your Own Project
+
+To integrate Entra ID authentication into your own .NET project, follow these steps:
+
+1. **Copy the helper module:**
+   
+   Copy `dotnet/NpgsqlDataSourceBuilderExtensions.cs` from this repository into your project.
+
+2. **Install required dependencies:**
+   
+   ```bash
+   dotnet add package Npgsql
+   dotnet add package Azure.Identity
+   ```
+
+3. **Import and use in your code:**
+
+   **Synchronous approach:**
+   ```csharp
+   using Npgsql;
+   using Azure.Identity;
+   
+   var connectionString = "Host=your-server.postgres.database.azure.com;Port=5432;Database=your-database;SSL Mode=Require";
+   
+   var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+   
+   // Enable Entra ID authentication
+   dataSourceBuilder.UseEntraAuthentication();
+   
+   await using var dataSource = dataSourceBuilder.Build();
+   await using var connection = await dataSource.OpenConnectionAsync();
+   
+   // Use the connection
+   await using var cmd = new NpgsqlCommand("SELECT current_user", connection);
+   var user = await cmd.ExecuteScalarAsync();
+   Console.WriteLine($"Connected as: {user}");
+   ```
+
+   **Asynchronous approach (recommended for ASP.NET Core):**
+   ```csharp
+   using Npgsql;
+   using Azure.Identity;
+   
+   var connectionString = "Host=your-server.postgres.database.azure.com;Port=5432;Database=your-database;SSL Mode=Require";
+   
+   var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+   
+   // Enable Entra ID authentication with async token acquisition
+   await dataSourceBuilder.UseEntraAuthenticationAsync();
+   
+   await using var dataSource = dataSourceBuilder.Build();
+   await using var connection = await dataSource.OpenConnectionAsync();
+   
+   // Use the connection
+   await using var cmd = new NpgsqlCommand("SELECT current_user", connection);
+   var user = await cmd.ExecuteScalarAsync();
+   Console.WriteLine($"Connected as: {user}");
+   ```
+
+4. **Configure authentication:**
+   
+   Ensure your application has access to Azure credentials through one of these methods:
+   - **Azure CLI**: Run `az login` before running your app (local development)
+   - **Environment variables**: Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+   - **Managed Identity**: When running on Azure (App Service, Container Apps, VM, AKS, etc.)
+   - **Visual Studio / VS Code**: Sign in to Azure
+   - **Other**: Any method supported by `DefaultAzureCredential`
+
+The `NpgsqlDataSourceBuilderExtensions` class handles token acquisition, automatic refresh, and username extraction from JWT claims. You don't need to modify it—just use the extension methods as shown above.
 
 ### How Token Refresh is Implemented in .NET
 
