@@ -12,12 +12,6 @@ except ImportError as e:
         "Install them with: pip install azurepg-entra[psycopg3]"
     ) from e
 
-import sys
-from pathlib import Path
-
-# Add parent directory (python folder) to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from shared import get_entra_conninfo_async
 from errors import (
     CredentialValueError,
