@@ -1,5 +1,8 @@
-azure-identity
+azure-identity  # also installs azure-core as a dependency
 psycopg-pool
 asyncio
 dotenv
 psycopg[binary,pool]
+psycopg2-binary
+aiohttp
+sqlalchemy
