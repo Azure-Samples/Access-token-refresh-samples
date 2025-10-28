@@ -5,12 +5,13 @@ This repository provides sample implementations in Python, JavaScript, and .NET 
 ## Table of Contents
 - [Overview](#overview)
 - [Python Usage](#python-usage)
+- [Java Usage](#java-usage)
 - [JavaScript Usage](#javascript-usage)
 - [Dotnet Usage](#dotnet-usage)
 
 ## Overview
 Access tokens are essential for securely accessing protected resources in Microsoft Entra ID. However, since they expire after a set duration, applications need a reliable refresh mechanism to maintain seamless authentication without interrupting the user experience.
-To support this, we've created extension methods for Npgsql (for .NET), psycopg (for Python), and node-postgres/Sequelize (for JavaScript). These methods can be easily invoked in your application code to handle token refresh logic, making it simpler to maintain secure and uninterrupted database connections.
+To support this, we've created extension methods for Npgsql (for .NET), psycopg (for Python), and JDBC/Hibernate (for Java). These methods can be easily invoked in your application code to handle token refresh logic, making it simpler to maintain secure and uninterrupted database connections.
 
 ## Python Usage
 
@@ -102,6 +103,89 @@ pool = AsyncConnectionPool(
 Use `python/sample.py` as a runnable demo that shows loading configuration from `.env` and creating the pool. If you copy `AsyncEntraConnection` into your own project you don't need the sample's `.env` or exact runtime layout — just supply host/DB settings however your application normally gets configuration.
 
 
+## Java Usage
+
+This repository provides Entra ID authentication samples for Java applications using PostgreSQL, with support for both plain JDBC and Hibernate ORM.
+
+### Prerequisites
+- Java 17 or higher
+- Maven 3.6+ (for dependency management)
+- Azure Identity Extensions library
+
+### Setup
+
+1. **Install Maven dependencies:**
+
+   The project includes a `pom.xml` file with all required dependencies. Navigate to the `java` folder and run:
+
+   ```powershell
+   cd java
+   mvn clean compile
+
+2. **Configure database connection:**
+
+   Create or edit `application.properties` in the `java` folder:
+
+   ```properties
+   url=jdbc:postgresql://<your-server>.postgres.database.azure.com:5432/<database>?sslmode=require&authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin
+   user=<your-username>@<your-domain>.onmicrosoft.com
+
+### Running the Examples
+
+The project includes two examples:
+- `EntraIdExtensionJdbc.java` - Basic JDBC and HikariCP connection pooling
+- `EntraIdExtensionHibernate.java` - Hibernate ORM with Entra ID authentication
+
+**To switch between examples**, edit the `<mainClass>` property in `pom.xml`:
+
+```xml
+<plugin>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>exec-maven-plugin</artifactId>
+  <version>3.1.0</version>
+  <configuration>
+    <!-- Change this line to switch between examples -->
+    <mainClass>EntraIdExtensionJdbc</mainClass>
+    <!-- Or use: <mainClass>EntraIdExtensionHibernate</mainClass> -->
+  </configuration>
+</plugin>
+```
+
+Then run:
+```powershell
+cd java
+mvn exec:java
+```
+
+**Note:** Do not use VS Code's "Run" button directly. Run examples through Maven to ensure proper classpath and resource loading.
+
+### Using in Your Own Project
+
+To integrate Entra ID authentication into your own Java project, you can follow the same setup steps for running the examples.
+
+### How Token Refresh Works (Java)
+
+The Azure Identity Extensions library (`azure-identity-extensions`) automatically handles token refresh:
+
+1. **Authentication Plugin**: The JDBC URL includes `authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin` which intercepts connection attempts.
+
+2. **Token Acquisition**: The plugin uses `DefaultAzureCredential` to automatically acquire Entra ID access tokens scoped for Azure Database for PostgreSQL.
+
+3. **Automatic Refresh**: 
+   - For single connections: A fresh token is acquired for each connection
+   - For connection pools: Tokens are refreshed automatically when connections are created or revalidated
+   - The `maxLifetime` setting in HikariCP (30 minutes) ensures connections are recycled before token expiration
+
+4. **Credential Discovery**: DefaultAzureCredential attempts authentication in this order:
+   - Environment variables
+   - Managed Identity
+   - Azure CLI credentials
+   - IntelliJ credentials
+   - VS Code credentials
+   - And more...
+
+This design ensures tokens are always valid without manual refresh logic, and connection pools automatically handle token lifecycle.
+
 ## JavaScript Usage
 
 This repository provides Entra ID authentication samples for JavaScript/Node.js applications using PostgreSQL, with support for both the `pg` (node-postgres) library and Sequelize ORM.
@@ -120,7 +204,7 @@ This repository provides Entra ID authentication samples for JavaScript/Node.js 
    cd javascript
    npm install
    ```
-
+   
 2. **Configure database connection:**
 
    Create a `.env` file in the `javascript` folder:
@@ -134,6 +218,7 @@ This repository provides Entra ID authentication samples for JavaScript/Node.js 
 
    Replace:
    - `<your-server>` with your Azure PostgreSQL server hostname
+   - `<database>` with your database name
    - `<your-database>` with your database name
    - `<your-username>@<your-domain>.onmicrosoft.com` with your Entra ID user principal name
 
@@ -234,11 +319,15 @@ The `entra-connection.js` module provides helper functions for Entra ID authenti
    - Environment variables
    - Managed Identity
    - Azure CLI credentials
+   - IntelliJ credentials
+   - VS Code credentials
+   - And more...
+
+This design ensures tokens are always valid without manual refresh logic, and connection pools automatically handle token lifecycle.
    - VS Code credentials
    - And more...
 
 ```
-
 
 ## Dotnet Usage
 
